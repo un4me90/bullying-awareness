@@ -1,0 +1,17 @@
+# 보안 키 - 절대 커밋 금지
+service_account.json
+
+# 로컬 데이터 파일
+student_data.csv
+rounds.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# IDE
+.claude/
+.vscode/
