@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.claude/
+.vscode/
+01_Ref/*.pdf
+01_Ref/*.mhtml
