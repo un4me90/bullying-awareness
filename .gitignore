@@ -1,5 +1,6 @@
 # 보안 키 - 절대 커밋 금지
 service_account.json
+.streamlit/secrets.toml
 
 # 로컬 데이터 파일
 student_data.csv

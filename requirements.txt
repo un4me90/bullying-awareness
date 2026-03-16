@@ -4,3 +4,4 @@ plotly>=5.0.0
 gspread>=6.0.0
 google-auth>=2.0.0
 google-auth-oauthlib>=1.0.0
+toml>=0.10.0
