@@ -47,16 +47,39 @@ def _get_or_create_ws(sh, title: str):
         return ws
 
 
+def _delete_duplicate_rows(ws, row: list):
+    """동일한 (round, student_name, grade, class) 행이 있으면 삭제 (중복 응시 처리)"""
+    all_rows = ws.get_all_values()
+    if len(all_rows) <= 1:
+        return
+    header = all_rows[0]
+    try:
+        ri = header.index("round")
+        ni = header.index("student_name")
+        gi = header.index("grade")
+        ci = header.index("class")
+    except ValueError:
+        return
+    # 뒤에서부터 탐색해 삭제 (행 번호 밀림 방지)
+    for idx in range(len(all_rows) - 1, 0, -1):
+        r = all_rows[idx]
+        if (str(r[ri]) == str(row[0]) and r[ni] == row[1]
+                and str(r[gi]) == str(row[2]) and str(r[ci]) == str(row[3])):
+            ws.delete_rows(idx + 1)  # gspread는 1-based
+
+
 def _append_to_sheets(sh, row: list, grade: int, cls: int):
-    """'전체' 시트와 'N학년 M반' 시트에 동시 저장"""
+    """'전체' 시트와 'N학년 M반' 시트에 동시 저장 (중복 시 마지막 응시만 유지)"""
     # 전체 시트
     ws_all = _get_or_create_ws(sh, "전체")
     if not ws_all.get_all_values():
         ws_all.append_row(COLUMNS)
+    _delete_duplicate_rows(ws_all, row)
     ws_all.append_row(row)
 
     # 반별 시트
     ws_cls = _get_or_create_ws(sh, f"{grade}학년 {cls}반")
+    _delete_duplicate_rows(ws_cls, row)
     ws_cls.append_row(row)
 
 _BASE_DIR            = Path(__file__).parent
@@ -386,6 +409,62 @@ def reset_data(round_id: int, grade: int | None = None, cls: int | None = None):
             _rewrite_ws(ws, header, cls_rows)
     except Exception:
         pass
+
+
+def deduplicate_data(round_id: int | None = None) -> int:
+    """중복 응시 데이터 정리: (round, student_name, grade, class) 기준 마지막 행만 유지.
+    round_id 지정 시 해당 회차만, None 이면 전체 회차 대상.
+    반환값: 삭제된 행 수"""
+    sh = _get_spreadsheet()
+    if sh is None:
+        return 0
+    try:
+        ws_all = _get_or_create_ws(sh, "전체")
+        all_rows = ws_all.get_all_values()
+        if len(all_rows) <= 1:
+            return 0
+        header = all_rows[0]
+        ri = header.index("round")
+        ni = header.index("student_name")
+        gi = header.index("grade")
+        ci = header.index("class")
+
+        # 마지막 등장 행만 남기기 (뒤에서부터 순회하며 키 첫 등장만 보존)
+        seen: set = set()
+        deduped: list = []
+        for r in reversed(all_rows[1:]):
+            # round_id 필터
+            if round_id is not None and str(r[ri]) != str(round_id):
+                deduped.append(r)
+                continue
+            key = (r[ri], r[ni], r[gi], r[ci])
+            if key not in seen:
+                seen.add(key)
+                deduped.append(r)
+        deduped.reverse()
+
+        removed = len(all_rows) - 1 - len(deduped)
+        if removed == 0:
+            return 0
+
+        _rewrite_ws(ws_all, header, deduped)
+
+        # 반별 시트도 갱신
+        for ws in sh.worksheets():
+            if ws.title in ("전체", "_rounds"):
+                continue
+            try:
+                g = int(ws.title.split("학년")[0])
+                c = int(ws.title.split("학년 ")[1].replace("반", ""))
+            except Exception:
+                continue
+            cls_rows = [r for r in deduped
+                        if str(r[gi]) == str(g) and str(r[ci]) == str(c)]
+            _rewrite_ws(ws, header, cls_rows)
+
+        return removed
+    except Exception:
+        return 0
 
 
 # ── 공통 UI 헬퍼 ─────────────────────────────────────────

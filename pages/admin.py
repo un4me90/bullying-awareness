@@ -8,6 +8,7 @@ from quiz_data import (
     load_data, CATEGORIES, require_auth,
     load_rounds, create_new_round, set_current_round,
     round_selector_sidebar, download_csv_button, reset_button,
+    deduplicate_data,
 )
 
 require_auth()
@@ -123,3 +124,20 @@ with c1:
     download_csv_button(df, "전체_진단결과.csv")
 with c2:
     reset_button(round_id, label="전체")
+
+with st.expander("🧹 중복 응시 데이터 정리", expanded=False):
+    st.caption("동일 학생이 여러 번 응시한 경우 마지막 응시 결과만 남깁니다.")
+    dedup_scope = st.radio(
+        "정리 범위",
+        ["현재 회차만", "전체 회차"],
+        horizontal=True,
+        key="dedup_scope",
+    )
+    if st.button("중복 정리 실행", type="primary", key="dedup_btn"):
+        target_round = round_id if dedup_scope == "현재 회차만" else None
+        removed = deduplicate_data(target_round)
+        if removed > 0:
+            st.success(f"중복 행 {removed}개를 삭제했습니다.")
+            st.rerun()
+        else:
+            st.info("정리할 중복 데이터가 없습니다.")
